@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+
+const path = require('path')
+const fs = require('fs')
+
+if (!(process.argv.length > 0)) {
+  console.error('No path provided')
+  process.exit(1)
+}
+
+const steamLibPath = path.normalize(process.argv[2])
+const steamCommonPath = path.join(steamLibPath, 'steamapps', 'common')
+const applicationPath = path.join(process.env['HOME'], '.local', 'share', 'applications')
+
+if (!fs.existsSync(steamCommonPath)) {
+  console.error('Invalid path.')
+  process.exit(1)
+}
+
+fs.readdir(steamCommonPath, (err, files) => { // Get all directories in steamCommonPath
+  if (err) throw err
+
+  console.log(`Found ${files.length} games.`)
+  console.log(`Creating .desktop files...`)
+  files.forEach((dir) => { // Iterate through all the directories
+    const gamePath = path.join(steamCommonPath, dir)
+    fs.stat(gamePath, (err, stats) => { // Check existence of game directory
+      if (err) throw err
+      if (!stats.isDirectory()) return // Skip files
+
+      const appidFilePath = path.join(gamePath, 'steam_appid.txt')
+
+      fs.stat(appidFilePath, (err, stats) => { // Check existence of steam_appid.txt file
+        if (err || !stats.isFile()) return // Skip if not
+
+        fs.readFile(appidFilePath, 'utf8', (err, fd) => { // Get the appid
+          const game = {
+            name: dir,
+            id: fd.split('\n')[0]
+          }
+
+          const desktopFileContent = `[Desktop Entry]\nName=${game.name}\nComment=Play this game on Steam\nExec=steam steam://rungameid/${game.id}\nIcon=steam\nTerminal=false\nType=Application\nCategories=Game;\n\n`
+
+          fs.writeFile(path.join(applicationPath, `${game.name}.desktop`), desktopFileContent, (err) => { // Create a .desktop file for the game
+            if (err) throw err
+            console.log(`Created .dektop file for '${game.name}' (${game.id}).`)
+          })
+        })
+      })
+    })
+  })
+})
