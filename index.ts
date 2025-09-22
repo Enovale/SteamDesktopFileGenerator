@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { normalize, join } from 'path'
-import { readdir, stat, readFile, writeFile, mkdtemp, rmdir, mkdir } from 'fs/promises'
+import { readdir, stat, readFile, writeFile, mkdtemp, rmdir, mkdir, rename, copyFile, constants } from 'fs/promises'
 import { createWriteStream, existsSync } from 'fs'
 import parseArgs from 'minimist'
 import { exec, spawn } from 'child_process';
@@ -19,22 +19,41 @@ if (argv._.length <= 0) {
 const steamLibPath = normalize(argv._[0])
 const steamCommonPath = join(steamLibPath, 'steamapps', 'common')
 const applicationPath = join(process.env['HOME'], '.local', 'share', 'applications', 'steam')
-const iconPath = join(process.env['HOME'], '.local', 'share', 'icons')
+const iconPath = join(process.env['HOME'], '.local', 'share', 'icons', 'hicolor')
 const tmpDir = await mkdtemp(join(tmpdir(), "sdfg-"));
 const steamcmdRegex = /^\s*"clienticon"\s+"([^"]+)"\s*$/gm
 const steamIconBase = "https://shared.fastly.steamstatic.com/community_assets/images/apps/"
+const steamIconRegex = /([0-9]*)x([0-9]*)x([0-9]*)/
 
 async function extractIco(src, dest) {
-  await mkdir(sizesDest);
-  return await Promise((resolve, reject) => {
+  await mkdir(dest);
+  const err = await new Promise((resolve, reject) => {
     exec(`icotool -x ${src} -o ${dest}`, (error, stdout, stderror) => {
       if (error) {
         console.error(`Could not extract icon sizes! ${stderror}`);
         reject(error);
         return;
       }
-      resolve(stdout)
+
+      resolve(null)
     });
+  });
+
+  if (err)
+    return [];
+
+  const files = await readdir(dest);
+  return files.map((v) => {
+    const matches = steamIconRegex.exec(v);
+    if (!matches)
+      return null;
+
+    return {
+      path: join(dest, v),
+      width: matches[1],
+      height: matches[2],
+      bitdepth: matches[3],
+    }
   });
 }
 
@@ -93,6 +112,34 @@ async function getIconHash(app_id) {
 async function installIcon(app_id) {
   const ico = await downloadIcon(app_id);
   const sizes = await extractIco(ico, join(tmpDir, `${app_id}/`));
+  let succeeded = false;
+  const highestDepth = Math.max(...sizes.map(v => v.bitdepth));
+  for (const v of sizes) {
+    if (v.height != v.width) {
+      console.error(`Icon '${v.path}' is not square!`);
+      continue;
+    }
+
+    if (v.bitdepth != highestDepth) // Just ignore non-32 bit depth images
+      continue;
+
+    const iconDir = join(iconPath, `${v.width}x${v.height}/`, 'apps/');
+    if (!existsSync(iconDir))
+      continue;
+
+    try {
+      const destPath = join(iconDir, `steam_icon_${app_id}.png`);
+      if (existsSync(destPath)) {
+        succeeded = true;
+        continue;
+      }
+      await copyFile(v.path, destPath);
+      succeeded = true;
+    } catch (err) {
+      ; // stub
+    }
+  }
+  return succeeded;
 }
 
 async function createDesktopFile(dir) {
@@ -114,9 +161,9 @@ async function createDesktopFile(dir) {
         id: fd.split('\n')[0]
       }
 
-      await installIcon(game.id);
+      const icon = await installIcon(game.id) ? `steam_icon_${game.id}` : "steam";
 
-      const desktopFileContent = `[Desktop Entry]\nName=${game.name}\nComment=Play this game on Steam\nExec=steam steam://rungameid/${game.id}\nIcon=steam\nTerminal=false\nType=Application\nCategories=Game;\n\n`
+      const desktopFileContent = `[Desktop Entry]\nName=${game.name}\nComment=Play this game on Steam\nExec=steam steam://rungameid/${game.id}\nIcon=${icon}\nTerminal=false\nType=Application\nCategories=Game;\n\n`
 
       try {
         await writeFile(join(applicationPath, `${game.name}.desktop`), desktopFileContent) // Create a .desktop file for the game
