@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { normalize, join } from 'path'
-import { readdir, stat, readFile, writeFile, mkdtemp, rmdir, mkdir, rename, copyFile, constants } from 'fs/promises'
+import { readdir, stat, readFile, writeFile, mkdtemp, rmdir, mkdir, rename, copyFile, constants, rm } from 'fs/promises'
 import { createWriteStream, existsSync } from 'fs'
 import parseArgs from 'minimist'
 import { exec, spawn } from 'child_process';
@@ -18,11 +18,11 @@ if (argv._.length <= 0) {
 
 const steamLibPath = normalize(argv._[0])
 const steamCommonPath = join(steamLibPath, 'steamapps', 'common')
-const applicationPath = join(process.env['HOME'], '.local', 'share', 'applications', 'steam')
-const iconPath = join(process.env['HOME'], '.local', 'share', 'icons', 'hicolor')
+const applicationPath = argv.o ?? join(process.env['HOME'], '.local', 'share', 'applications', 'steam')
+const iconPath = argv.io ?? join(process.env['HOME'], '.local', 'share', 'icons', 'hicolor')
 const tmpDir = await mkdtemp(join(tmpdir(), "sdfg-"));
 const steamcmdRegex = /^\s*"clienticon"\s+"([^"]+)"\s*$/gm
-const steamIconBase = "https://shared.fastly.steamstatic.com/community_assets/images/apps/"
+const steamIconBase = argv.icon_cdn ?? "https://shared.fastly.steamstatic.com/community_assets/images/apps/"
 const steamIconRegex = /([0-9]*)x([0-9]*)x([0-9]*)/
 
 async function extractIco(src, dest) {
@@ -65,7 +65,6 @@ async function downloadIcon(app_id) {
 
   const url = `${steamIconBase}${app_id}/${iconHash}.ico`;
 
-  console.log(url);
   const res = await fetch(url);
   if (res.ok) {
     const dest = join(tmpDir, iconHash)
@@ -99,7 +98,6 @@ async function getIconHash(app_id) {
 
   return await promise.then(
     (hash) => {
-      console.log(hash);
       return hash;
     },
     (err) => {
@@ -179,6 +177,10 @@ async function createDesktopFile(dir) {
   }
 }
 
+async function getInstalledAppIds() {
+
+}
+
 async function createAllDesktops() {
   if (!existsSync(steamCommonPath)) {
     console.error('Invalid path.')
@@ -189,13 +191,13 @@ async function createAllDesktops() {
     const files = await readdir(steamCommonPath);
     console.log(`Found ${files.length} games.`)
     console.log(`Creating .desktop files...`)
-    files.map(async (file) => {
-      await createDesktopFile(file)
-    })
+    for (const file of files) {
+      await createDesktopFile(file);
+    }
   } catch (err) {
     console.error(err);
   }
 }
 
 await createAllDesktops()
-//await rmdir(tmpDir)
+await rm(tmpDir, { recursive: true })
