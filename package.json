@@ -1,17 +1,27 @@
 {
   "name": "SteamDesktopFileGenerator",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "",
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "pnpx tsx index.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.17.0",
   "dependencies": {
-    "minimist": "^1.2.8"
+    "icojs": "^0.20.1",
+    "kvparser": "^1.0.2",
+    "minimist": "^1.2.8",
+    "sanitize-filename": "^1.6.3",
+    "steam-locate": "^1.0.6",
+    "steamcmd-interface": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^24.10.0",
+    "tsx": "^4.20.6"
   }
 }
