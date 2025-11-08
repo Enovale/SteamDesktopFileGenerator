@@ -137,7 +137,7 @@ async function installIcon(app_id: string, info: any) {
       try {
         const destPath = join(iconDir, `steam_icon_${app_id}.png`);
         if (!forceOverwrite && existsSync(destPath)) {
-          console.log(`Skipping icon as it already exists: ${v.path}`);
+          console.log(`Skipping icon as it already exists: ${destPath}`);
           succeeded = true;
           continue;
         }
